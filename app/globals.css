@@ -4,19 +4,23 @@
   --font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
-  --color-molou-bg: #11110f;
-  --color-molou-surface: #191917;
-  --color-molou-text: #f5f1e8;
-  --color-molou-muted: #b8b0a3;
-  --color-molou-cyan: #55d6be;
-  --color-molou-amber: #f1bb55;
-  --color-molou-red: #f16f60;
-  --color-molou-green: #8bd46e;
-  --color-molou-violet: #aa8df6;
 }
 
-:root {
+/* Theme strategy
+ *   - :root defaults to the dark palette so SSR and no-JS clients match the
+ *     canonical look.
+ *   - prefers-color-scheme: light → opt into the light palette automatically
+ *     when the OS prefers it AND the user hasn't forced dark.
+ *   - data-theme="light" / "dark" → explicit user override, set by the theme
+ *     toggle before paint via the pre-hydration script in app/layout.tsx.
+ *   - Each accent gets a -bright variant for elements that need extra punch
+ *     against light backgrounds (focus rings, active states).
+ */
+
+:root,
+:root[data-theme="dark"] {
   --bg: #11110f;
+  --bg-soft: #141411;
   --surface: #191917;
   --surface-2: #22221f;
   --surface-3: #2b2b27;
@@ -32,7 +36,76 @@
   --violet: #aa8df6;
   --pink: #ee78a6;
   --shadow: 0 20px 70px rgb(0 0 0 / 0.24);
+  --code-bg: #0e0e0c;
+  --tooltip-bg: #24231f;
+  --brand-bg: #11110f;
+  --brand-stroke: #a8a8a6;
+  --brand-node: #d896c4;
+  --brand-center: #7cc7e8;
+  --brand-spark: #f4f2ee;
+  --gradient-tint-a: rgb(85 214 190 / 0.08);
+  --gradient-tint-b: rgb(241 187 85 / 0.07);
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #faf7ec;
+    --bg-soft: #f5f1e1;
+    --surface: #fffdf3;
+    --surface-2: #f1ebd5;
+    --surface-3: #e5dec3;
+    --text: #161410;
+    --muted: #5e5546;
+    --dim: #8e8472;
+    --line: #d6cfb8;
+    --line-strong: #aea58c;
+    --cyan: #117a66;
+    --amber: #8a5e0d;
+    --red: #b13b2d;
+    --green: #357a23;
+    --violet: #5b43b0;
+    --pink: #a44372;
+    --shadow: 0 20px 70px rgb(40 30 10 / 0.08);
+    --brand-bg: #fffdf3;
+    --brand-stroke: #6a6253;
+    --brand-node: #a44372;
+    --brand-center: #117a66;
+    --brand-spark: #161410;
+    --gradient-tint-a: rgb(17 122 102 / 0.08);
+    --gradient-tint-b: rgb(138 94 13 / 0.07);
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #faf7ec;
+  --bg-soft: #f5f1e1;
+  --surface: #fffdf3;
+  --surface-2: #f1ebd5;
+  --surface-3: #e5dec3;
+  --text: #161410;
+  --muted: #5e5546;
+  --dim: #8e8472;
+  --line: #d6cfb8;
+  --line-strong: #aea58c;
+  --cyan: #117a66;
+  --amber: #8a5e0d;
+  --red: #b13b2d;
+  --green: #357a23;
+  --violet: #5b43b0;
+  --pink: #a44372;
+  --shadow: 0 20px 70px rgb(40 30 10 / 0.08);
+  --code-bg: #fffdf3;
+  --tooltip-bg: #fffdf3;
+  --brand-bg: #fffdf3;
+  --brand-stroke: #6a6253;
+  --brand-node: #a44372;
+  --brand-center: #117a66;
+  --brand-spark: #161410;
+  --gradient-tint-a: rgb(17 122 102 / 0.08);
+  --gradient-tint-b: rgb(138 94 13 / 0.07);
+  color-scheme: light;
 }
 
 * {
@@ -47,9 +120,9 @@ html {
 body {
   margin: 0;
   background:
-    linear-gradient(115deg, rgb(85 214 190 / 0.08) 0%, transparent 32%),
-    linear-gradient(245deg, rgb(241 187 85 / 0.07) 0%, transparent 34%),
-    linear-gradient(180deg, #141411 0%, var(--bg) 42rem);
+    linear-gradient(115deg, var(--gradient-tint-a) 0%, transparent 32%),
+    linear-gradient(245deg, var(--gradient-tint-b) 0%, transparent 34%),
+    linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 42rem);
   color: var(--text);
   font-family:
     Inter,
@@ -62,6 +135,9 @@ body {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
+  transition:
+    background 200ms ease,
+    color 200ms ease;
 }
 
 button,
@@ -146,26 +222,45 @@ a:hover {
   flex-wrap: wrap;
 }
 
-.header-link {
+.header-link,
+.theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--text);
   font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
   text-decoration: none;
   transition:
     border-color 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.theme-toggle .theme-toggle-label {
+  font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--muted);
 }
 
 .header-link:hover,
-.header-link:focus-visible {
+.header-link:focus-visible,
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
   border-color: var(--cyan);
   background: color-mix(in srgb, var(--cyan) 12%, var(--surface));
+}
+
+.theme-toggle:hover .theme-toggle-label,
+.theme-toggle:focus-visible .theme-toggle-label {
+  color: var(--text);
 }
 
 .eyebrow {
@@ -218,7 +313,7 @@ p {
   max-width: 360px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.78);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   color: var(--muted);
   padding: 10px 12px;
   font-size: 0.88rem;
@@ -236,7 +331,7 @@ p {
 .secondary-button {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   cursor: pointer;
   transition:
     border-color 160ms ease,
@@ -302,7 +397,7 @@ p {
   top: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: var(--shadow);
   padding: 16px;
 }
@@ -576,7 +671,7 @@ p {
 .roadmap-strip {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
 .method-summary {
@@ -1043,7 +1138,7 @@ p {
   padding: 12px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background: #24231f;
+  background: var(--tooltip-bg);
   box-shadow: var(--shadow);
   color: var(--text);
   transform: translateX(-50%);
@@ -1240,7 +1335,7 @@ p {
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #0e0e0c;
+  background: var(--code-bg);
   color: var(--text);
   font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
   font-size: 0.86rem;
@@ -1370,7 +1465,7 @@ p {
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgb(25 25 23 / 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
 .comparison-toggle-wrap > summary {

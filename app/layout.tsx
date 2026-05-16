@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { themeInitScript } from "@/src/lib/theme";
 import "./globals.css";
 
 // Production deploys should set NEXT_PUBLIC_SITE_URL so OG / Twitter cards
@@ -73,8 +74,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#11110f",
-  colorScheme: "dark"
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf7ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#11110f" }
+  ],
+  colorScheme: "light dark"
 };
 
 export default function RootLayout({
@@ -83,7 +87,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

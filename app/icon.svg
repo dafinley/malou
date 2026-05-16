@@ -1,17 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#11110f" />
+  <style>
+    .bg { fill: #11110f; }
+    .stroke { stroke: #a8a8a6; }
+    .node { fill: #d896c4; }
+    .center { fill: #7cc7e8; }
+    .spark { fill: #f4f2ee; }
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #fffdf3; }
+      .stroke { stroke: #6a6253; }
+      .node { fill: #a44372; }
+      .center { fill: #117a66; }
+      .spark { fill: #161410; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="6" />
   <path
+    class="stroke"
     d="M 7 26 L 7 6 L 16 16 L 25 6 L 25 26"
-    stroke="#a8a8a6"
     stroke-width="2.4"
     fill="none"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <circle cx="7" cy="6" r="3" fill="#d896c4" />
-  <circle cx="25" cy="6" r="3" fill="#d896c4" />
-  <circle cx="16" cy="16" r="3" fill="#7cc7e8" />
-  <circle cx="7" cy="26" r="3" fill="#d896c4" />
-  <circle cx="25" cy="26" r="3" fill="#d896c4" />
-  <circle cx="16" cy="16" r="1.1" fill="#f4f2ee" />
+  <circle class="node" cx="7" cy="6" r="3" />
+  <circle class="node" cx="25" cy="6" r="3" />
+  <circle class="center" cx="16" cy="16" r="3" />
+  <circle class="node" cx="7" cy="26" r="3" />
+  <circle class="node" cx="25" cy="26" r="3" />
+  <circle class="spark" cx="16" cy="16" r="1.1" />
 </svg>
