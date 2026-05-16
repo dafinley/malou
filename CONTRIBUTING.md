@@ -1,0 +1,101 @@
+# Contributing to Molou
+
+Thank you for considering a contribution. Molou exists to make modern ML training methods inspectable — every change should serve that goal.
+
+## Ground rules
+
+- **Educational accuracy first.** If a fact, formula, or memory sketch is wrong, the whole project loses value. When in doubt, cite a paper.
+- **Keep the dark theme as the canonical look.** Light theme is welcome as an addition, not a replacement.
+- **Stay Bun-first.** All scripts and docs use `bun`. Don't add npm/pnpm install instructions to the README.
+- **No heavy deps without discussion.** Open an issue before adding animation libs, state libs, or charting libs.
+
+## Local setup
+
+Requirements:
+
+- [Bun](https://bun.sh/) ≥ 1.1
+- Node.js ≥ 20.19
+
+Recommended: use [mise](https://mise.jdx.dev/) to install the exact toolchain in `.mise.toml`:
+
+```bash
+mise install
+mise exec -- bun install
+mise exec -- bun run dev
+```
+
+If you manage runtimes yourself, use Node 22 and Bun 1.3.12:
+
+```bash
+bun install
+bun run dev
+```
+
+Open `http://localhost:3000`.
+
+## Project layout
+
+```
+app/                          Next.js App Router entry + global styles + app/icon.svg + app/opengraph-image.tsx
+src/
+  components/                 UI components (split by responsibility)
+    method-lab/               Per-method deep dives — one folder per method
+      full-training/          Compute budget, optimizer breakdown, training dynamics, synthesis
+      lora/                   Context, batch, matrix decomp, alpha gain, synthesis
+      qlora/                  Precision ladder, NF4 PDF, block-quant, dataflow, memory stack
+      distillation/           Capacity gap, temperature softmax, loss mix, flavor matching, compute
+      rl/                     Policy loop, KL leash, reward hacking, algorithm compare, synthesis
+    numbered-subsection.tsx   Shared "01 · title · formula · viz · → takeaway" wrapper
+    relationships-graph.tsx   Shared node/edge graph used to close each lab
+  data/
+    training.ts               Methods, controls, toggles, selectors, glossary, presets
+    references.ts             Per-method math, code, references, decision guide
+  lib/
+    derive-stats.ts           Memory and signal math (incl. QLoRA block-scale overhead)
+    format.ts                 Number/byte formatters
+    url-state.ts              Search-param state hook, validated with zod
+    security-headers.mjs      CSP and security headers (shared by next.config and pages script)
+scripts/
+  prepare-pages.mjs           Post-build step for the GitHub Pages export
+```
+
+## Adding a new training method
+
+1. Add a new `MethodKey` to [src/data/training.ts](src/data/training.ts) and append a `Method` entry with controls, steps, vocabulary, presets, and tone-setting fields. If the method needs booleans or enums, add new `ToggleKey` / `SelectorKey` entries plus their defaults.
+2. Extend `deriveStats` in [src/lib/derive-stats.ts](src/lib/derive-stats.ts) with a branch for your method. Return a memory stack that adds up to a believable VRAM sketch.
+3. Add a subfolder under [src/components/method-lab/](src/components/method-lab/) containing one file per visualization plus a `*-lab.tsx` orchestrator that composes them with [`NumberedSubsection`](src/components/numbered-subsection.tsx) and closes with a [`RelationshipsGraph`](src/components/relationships-graph.tsx). Then route it via [src/components/method-lab/index.tsx](src/components/method-lab/index.tsx) — the `MethodKey` switch is exhaustive, so TypeScript will flag a missing case.
+4. Add an `EducationContent` entry in [src/data/references.ts](src/data/references.ts): intuition, math (with LaTeX-style ASCII), decision guide, code snippet, and at least two paper references.
+5. If the URL should serialize new numeric / boolean / enum state, extend the relevant schema in [src/lib/url-state.ts](src/lib/url-state.ts).
+6. Run `bun run check` and screenshot the new view in your PR.
+
+## Adding glossary terms
+
+Glossary entries live in [src/data/training.ts](src/data/training.ts). Each entry needs:
+
+- `definition` — one precise sentence; no jargon.
+- `intuition` — one sentence that points at the underlying idea, ideally with a concrete consequence.
+
+Reference a term inline with `<Term id="lora" />`.
+
+## Code style
+
+- TypeScript strict mode is on. No `any` unless escaping a third-party gap.
+- Don't add comments that only restate what the code does. Save comments for _why_.
+- Run `bun run format` before pushing.
+
+### Don't re-commit `next-env.d.ts` mutations
+
+`bun run build` and `bun run dev` rewrite `next-env.d.ts` to add an `import "./.next/types/routes.d.ts";` line for typed routes. That file lives under the gitignored `.next/` directory and isn't present on a fresh clone, so committing the mutated version breaks CI typecheck. Leave `next-env.d.ts` with only its two `/// <reference>` directives when staging changes.
+
+## Pre-PR checklist
+
+```bash
+bun run check   # lint + typecheck + format
+bun run build   # production build sanity check
+```
+
+Then attach a screenshot or short clip of the change in the PR description.
+
+## License
+
+By contributing you agree your contribution is offered under the [MIT License](LICENSE).
