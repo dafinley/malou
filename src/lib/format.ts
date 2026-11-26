@@ -16,8 +16,11 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatControlValue(value: number, control: ControlConfig): string {
+  if (control.format === "parameterCount") return formatCompact(value * 1e9);
   if (control.format === "percent") return `${Math.round(value * 100)}%`;
   if (control.format === "oneDecimal") return value.toFixed(1);
-  if (control.format === "decimal") return value.toFixed(2);
+  if (control.format === "decimal") {
+    return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  }
   return Math.round(value).toLocaleString();
 }

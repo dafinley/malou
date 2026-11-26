@@ -16,7 +16,7 @@
 
 ## Checks
 
-- [ ] `bun run check` passes (lint + typecheck + format)
+- [ ] `bun run check` passes (lint + typecheck + format + tests)
 - [ ] `bun run build` succeeds
 - [ ] Educational claims are sourced when non-obvious
 - [ ] No new heavy dependencies without prior issue discussion

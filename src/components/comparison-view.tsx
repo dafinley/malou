@@ -3,24 +3,31 @@
 import { Scale } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SectionHeader } from "@/src/components/section-header";
-import { defaultToggles, defaultValues, methods, type MethodKey } from "@/src/data/training";
-import { deriveStats, type Values } from "@/src/lib/derive-stats";
+import { methods, type MethodKey } from "@/src/data/training";
+import { deriveStats, type Toggles, type Values } from "@/src/lib/derive-stats";
 import { formatBytes, formatCompact } from "@/src/lib/format";
 
-const presets: Record<MethodKey, Partial<Values>> = {
-  "full-training": { modelSizeB: 7, datasetTokensB: 300, sequenceLength: 4096, batchSize: 32 },
-  "adapter-finetuning": { modelSizeB: 7, sequenceLength: 2048, batchSize: 8, rank: 16 },
-  qlora: { modelSizeB: 13, quantBits: 4, sequenceLength: 4096, rank: 32 },
-  distillation: { teacherSizeB: 70, studentSizeB: 7, temperature: 4, softTargetWeight: 0.7 },
-  "reinforcement-learning": {
-    modelSizeB: 7,
-    sequenceLength: 2048,
-    rollouts: 16,
-    rewardSignal: 72
-  }
-};
+function workloadLabel(method: MethodKey, values: Values) {
+  const context = `${values.sequenceLength.toLocaleString()} tokens`;
+  const batch = `${values.batchSize} × ${context}`;
+  const params = formatCompact(values.modelSizeB * 1e9);
 
-export function ComparisonView({ baseValues }: { baseValues: Values }) {
+  if (method === "distillation") {
+    const student = formatCompact(values.studentSizeB * 1e9);
+    const teacher = formatCompact(values.teacherSizeB * 1e9);
+    const models =
+      values.softTargetWeight > 0
+        ? `${teacher} teacher → ${student} student`
+        : `${student} student only`;
+    return `${models} · ${batch}`;
+  }
+  if (method === "reinforcement-learning") {
+    return `${params} policy · ${values.rollouts} rollouts × ${context}`;
+  }
+  return `${params} params · ${batch}`;
+}
+
+export function ComparisonView({ values, toggles }: { values: Values; toggles: Toggles }) {
   const [selected, setSelected] = useState<Set<MethodKey>>(
     () => new Set(["full-training", "adapter-finetuning", "qlora"] as MethodKey[])
   );
@@ -29,12 +36,8 @@ export function ComparisonView({ baseValues }: { baseValues: Values }) {
     () =>
       methods
         .filter((m) => selected.has(m.key))
-        .map((method) => {
-          const values: Values = { ...baseValues, ...presets[method.key] };
-          const stats = deriveStats(method.key, values, defaultToggles);
-          return { method, stats };
-        }),
-    [baseValues, selected]
+        .map((method) => ({ method, stats: deriveStats(method.key, values, toggles) })),
+    [values, toggles, selected]
   );
 
   const maxMemory = Math.max(1, ...rows.map((row) => row.stats.memoryBytes));
@@ -56,7 +59,7 @@ export function ComparisonView({ baseValues }: { baseValues: Values }) {
       <SectionHeader
         kicker="compare"
         title="Side by side"
-        copy="Same imaginary GPU, same workload. Pick training methods and the readout updates to compare trainable footprint, memory pressure, and per-step throughput."
+        copy="Full training, LoRA, and QLoRA share the current model size, sequence length, and batch size. Distillation uses teacher and student sizes. RL uses rollouts per step."
       />
 
       <div className="comparison-toggles" role="group" aria-label="methods to compare">
@@ -90,6 +93,7 @@ export function ComparisonView({ baseValues }: { baseValues: Values }) {
             <header>
               <p className="eyebrow">{method.eyebrow}</p>
               <h3>{method.label}</h3>
+              <p className="comparison-workload">{workloadLabel(method.key, values)}</p>
             </header>
 
             <div className="comparison-bar" aria-label={`${method.label} memory`}>
@@ -115,11 +119,15 @@ export function ComparisonView({ baseValues }: { baseValues: Values }) {
                 </dd>
               </div>
               <div>
-                <dt>Per step</dt>
+                <dt>
+                  {method.key === "reinforcement-learning"
+                    ? "Rollout tokens per step"
+                    : "Tokens per step"}
+                </dt>
                 <dd>{formatCompact(stats.tokensPerStep)}</dd>
               </div>
               <div>
-                <dt>vs full</dt>
+                <dt>{method.key === "distillation" ? "vs full teacher" : "vs full training"}</dt>
                 <dd>{(stats.memoryRatio * 100).toFixed(0)}%</dd>
               </div>
             </dl>
@@ -128,13 +136,9 @@ export function ComparisonView({ baseValues }: { baseValues: Values }) {
       </div>
 
       <p className="comparison-note">
-        <Scale size={14} aria-hidden /> Presets normalize each method to its native shape. Toggle
-        any combination to see how trainable footprint trades against memory and signal density.
-        Like the per-method sketch, these numbers are rough — build intuition here, profile on real
-        hardware before sizing.
+        <Scale size={14} aria-hidden /> Memory estimates assume one device, with no sharding or
+        activation checkpointing. Profile real workloads before sizing hardware.
       </p>
     </section>
   );
 }
-
-export const comparisonDefaults = defaultValues;

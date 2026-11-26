@@ -67,6 +67,8 @@
     --violet: #5b43b0;
     --pink: #a44372;
     --shadow: 0 20px 70px rgb(40 30 10 / 0.08);
+    --code-bg: var(--surface);
+    --tooltip-bg: var(--surface);
     --brand-bg: #fffdf3;
     --brand-stroke: #6a6253;
     --brand-node: #a44372;
@@ -96,8 +98,8 @@
   --violet: #5b43b0;
   --pink: #a44372;
   --shadow: 0 20px 70px rgb(40 30 10 / 0.08);
-  --code-bg: #fffdf3;
-  --tooltip-bg: #fffdf3;
+  --code-bg: var(--surface);
+  --tooltip-bg: var(--surface);
   --brand-bg: #fffdf3;
   --brand-stroke: #6a6253;
   --brand-node: #a44372;
@@ -445,6 +447,24 @@ p {
   height: 22px;
 }
 
+.number-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.number-control input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .slider-track::before,
 .slider-track::after {
   position: absolute;
@@ -661,6 +681,7 @@ p {
 
 .workspace-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   min-width: 0;
 }
@@ -1120,28 +1141,21 @@ p {
 }
 
 .term {
-  position: relative;
   display: inline-flex;
   border-bottom: 1px dotted color-mix(in srgb, var(--cyan) 70%, var(--text));
   color: var(--text);
   cursor: help;
-  outline: none;
 }
 
 .tooltip {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px);
-  z-index: 20;
-  display: none;
-  width: min(330px, 82vw);
+  z-index: 30;
+  width: min(330px, calc(100vw - 24px));
   padding: 12px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--tooltip-bg);
   box-shadow: var(--shadow);
   color: var(--text);
-  transform: translateX(-50%);
 }
 
 .tooltip strong,
@@ -1166,12 +1180,6 @@ p {
   font-size: 0.82rem;
   font-style: normal;
   line-height: 1.4;
-}
-
-.term:hover .tooltip,
-.term:focus .tooltip,
-.term:focus-within .tooltip {
-  display: block;
 }
 
 .architecture-layout {
@@ -1536,7 +1544,7 @@ p {
 
 .comparison-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 10px;
 }
 
@@ -1552,6 +1560,12 @@ p {
 
 .comparison-card header h3 {
   margin: 2px 0 0;
+}
+
+.comparison-workload {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .comparison-bar {
@@ -1628,12 +1642,14 @@ p {
 .method-lab {
   padding: 22px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   border-top: 3px solid var(--accent, var(--cyan));
 }
 
 .numbered-subsection {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   padding: 18px 20px;
   border: 1px solid var(--line);
@@ -1684,7 +1700,7 @@ p {
 .numbered-subsection-body > .lab-viz,
 .numbered-subsection-body > .qlora-viz,
 .numbered-subsection-body > .qlora-memory > .qlora-viz {
-  min-width: 320px;
+  min-width: 560px;
 }
 
 .numbered-subsection-takeaway {
@@ -1825,7 +1841,7 @@ p {
   }
 
   .workspace-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .control-panel {

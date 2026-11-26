@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Boxes, MemoryStick, Zap } from "lucide-react";
-import type { Method } from "@/src/data/training";
+import type { Method, MethodKey } from "@/src/data/training";
 import type { DerivedStats } from "@/src/lib/derive-stats";
 import { formatBytes, formatCompact } from "@/src/lib/format";
 
@@ -22,7 +22,7 @@ export function MethodSummary({ method, stats }: { method: Method; stats: Derive
         <Fact label="Frozen" value={method.frozen} />
         <Fact label="Main risk" value={method.risk} />
       </div>
-      <ReadoutCards stats={stats} />
+      <ReadoutCards method={method.key} stats={stats} />
     </section>
   );
 }
@@ -36,7 +36,10 @@ export function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReadoutCards({ stats }: { stats: DerivedStats }) {
+function ReadoutCards({ method, stats }: { method: MethodKey; stats: DerivedStats }) {
+  const fullTrainingReference =
+    method === "distillation" ? "full teacher training" : "full training";
+
   return (
     <div className="readout-grid">
       <div className="readout-card">
@@ -54,7 +57,11 @@ function ReadoutCards({ stats }: { stats: DerivedStats }) {
         <MemoryStick size={18} />
         <span>VRAM sketch</span>
         <strong>{formatBytes(stats.memoryBytes)}</strong>
-        <small>{(stats.memoryRatio * 100).toFixed(0)}% of full training sketch</small>
+        <small>
+          {method === "full-training"
+            ? "training state + saved activations"
+            : `${(stats.memoryRatio * 100).toFixed(0)}% of ${fullTrainingReference} sketch`}
+        </small>
       </div>
       <div className="readout-card">
         <BarChart3 size={18} />

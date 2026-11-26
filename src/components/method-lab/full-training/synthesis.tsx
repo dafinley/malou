@@ -1,10 +1,10 @@
 "use client";
 
+import { fullTrainingBytesPerParam } from "@/src/lib/derive-stats";
 import { formatBytes, formatCompact } from "@/src/lib/format";
 
 const H100_FLOPS_PER_SEC = 3e14;
 const SECONDS_PER_DAY = 86_400;
-const BYTES_PER_PARAM_TRAIN = 16; // weights + grads + Adam + fp32 master
 
 function StatCard({
   label,
@@ -43,7 +43,7 @@ export function FullTrainingSynthesis({
   const D = datasetTokensB * 1e9;
   const flops = 6 * N * D;
   const tokensPerParam = D / Math.max(N, 1);
-  const trainingMemory = N * BYTES_PER_PARAM_TRAIN;
+  const trainingStateBytes = N * fullTrainingBytesPerParam;
   const h100Days = flops / (H100_FLOPS_PER_SEC * SECONDS_PER_DAY);
   const stepsPerEpoch = D / Math.max(sequenceLength * batch, 1);
   const tokensPerStep = sequenceLength * batch;
@@ -92,9 +92,9 @@ export function FullTrainingSynthesis({
         color="var(--violet)"
       />
       <StatCard
-        label="training VRAM"
-        value={formatBytes(trainingMemory)}
-        sub="weights + grads + Adam + fp32"
+        label="training state"
+        value={formatBytes(trainingStateBytes)}
+        sub="before saved activations"
         color="var(--violet)"
       />
       <StatCard

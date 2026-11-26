@@ -155,7 +155,7 @@ export function TrainingWorkbench() {
               <span>Compare methods side by side</span>
               <small>{comparisonOpen ? "hide" : "show"}</small>
             </summary>
-            {comparisonOpen ? <ComparisonView baseValues={values} /> : null}
+            {comparisonOpen ? <ComparisonView toggles={toggles} values={values} /> : null}
           </details>
 
           <GlossaryPanel method={method} />

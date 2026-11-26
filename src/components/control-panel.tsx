@@ -1,6 +1,7 @@
 "use client";
 
 import { Play, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { useState } from "react";
 import { RadioGroup } from "@/src/components/radio-group";
 import { Term } from "@/src/components/term";
 import { Toggle } from "@/src/components/toggle";
@@ -45,7 +46,7 @@ export function ControlPanel({
 
       <div className="control-list">
         {method.controls.map((control) => (
-          <SliderControl
+          <ParameterControl
             control={control}
             key={control.key}
             setValue={setValue}
@@ -122,7 +123,7 @@ export function ControlPanel({
   );
 }
 
-function SliderControl({
+function ParameterControl({
   control,
   value,
   setValue
@@ -131,30 +132,60 @@ function SliderControl({
   value: number;
   setValue: (key: ControlKey, value: number) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
   const percent = ((value - control.min) / (control.max - control.min)) * 100;
   const inputId = `control-${control.key}`;
+  const accessibleLabel = `${control.label}${control.unit ? `, ${control.unit}` : ""}`;
+  const displayUnit = control.format === "parameterCount" ? "params" : control.unit;
 
   return (
     <div className="slider-control">
-      <label className="slider-label" htmlFor={inputId}>
-        <span>{control.term ? <Term id={control.term}>{control.label}</Term> : control.label}</span>
+      <div className="slider-label">
+        {control.term ? (
+          <Term id={control.term}>{control.label}</Term>
+        ) : (
+          <label htmlFor={inputId}>{control.label}</label>
+        )}
         <strong>
           {formatControlValue(value, control)}
-          {control.unit ? <small>{control.unit}</small> : null}
+          {displayUnit ? <small>{displayUnit}</small> : null}
         </strong>
-      </label>
-      <span className="slider-track" style={{ "--pct": `${percent}%` } as React.CSSProperties}>
-        <input
-          aria-label={`${control.label}${control.unit ? `, ${control.unit}` : ""}`}
-          id={inputId}
-          max={control.max}
-          min={control.min}
-          onChange={(event) => setValue(control.key, Number(event.target.value))}
-          step={control.step}
-          type="range"
-          value={value}
-        />
-      </span>
+      </div>
+      {control.input === "number" ? (
+        <div className="number-control">
+          <input
+            aria-label={accessibleLabel}
+            id={inputId}
+            inputMode="decimal"
+            max={control.max}
+            min={control.min}
+            onBlur={() => setDraft(null)}
+            onChange={({ currentTarget: input }) => {
+              setDraft(input.value);
+              if (input.validity.valid && Number.isFinite(input.valueAsNumber)) {
+                setValue(control.key, input.valueAsNumber);
+              }
+            }}
+            step={control.step}
+            type="number"
+            value={draft ?? value}
+          />
+          <span aria-hidden>{control.unit}</span>
+        </div>
+      ) : (
+        <span className="slider-track" style={{ "--pct": `${percent}%` } as React.CSSProperties}>
+          <input
+            aria-label={accessibleLabel}
+            id={inputId}
+            max={control.max}
+            min={control.min}
+            onChange={(event) => setValue(control.key, Number(event.target.value))}
+            step={control.step}
+            type="range"
+            value={value}
+          />
+        </span>
+      )}
     </div>
   );
 }

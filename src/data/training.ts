@@ -54,9 +54,10 @@ export type ControlConfig = {
   min: number;
   max: number;
   step: number;
+  input?: "number";
   unit?: string;
   term?: GlossaryKey;
-  format?: "integer" | "decimal" | "oneDecimal" | "percent";
+  format?: "integer" | "decimal" | "oneDecimal" | "percent" | "parameterCount";
 };
 
 export type ToggleConfig = {
@@ -179,7 +180,7 @@ const commonControls: ControlConfig[] = [
     key: "modelSizeB",
     label: "model size",
     min: 0.5,
-    max: 70,
+    max: 175,
     step: 0.5,
     unit: "B params",
     term: "checkpoint",
@@ -503,22 +504,24 @@ export const methods: Method[] = [
       {
         key: "teacherSizeB",
         label: "teacher size",
-        min: 1,
+        min: 0.001,
         max: 500,
-        step: 1,
+        step: 0.001,
+        input: "number",
         unit: "B params",
         term: "distillation",
-        format: "integer"
+        format: "parameterCount"
       },
       {
         key: "studentSizeB",
         label: "student size",
-        min: 0.1,
+        min: 0.001,
         max: 70,
-        step: 0.1,
+        step: 0.001,
+        input: "number",
         unit: "B params",
         term: "distillation",
-        format: "oneDecimal"
+        format: "parameterCount"
       },
       {
         key: "temperature",
@@ -650,7 +653,7 @@ export const methods: Method[] = [
         label: "KL β (drift leash)",
         min: 0,
         max: 1,
-        step: 0.01,
+        step: 0.005,
         unit: "β",
         term: "policy",
         format: "decimal"

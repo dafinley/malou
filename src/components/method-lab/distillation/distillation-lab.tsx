@@ -168,10 +168,14 @@ export function DistillationLab({
       <NumberedSubsection
         num="05"
         title="The compute deal"
-        formula="train: 2·T + 6·S    infer: 2·S"
-        takeaway="Each training step needs the teacher to do a forward pass — adds cost, but no gradients flow through it. That's the price you pay during training. The payoff is at inference: you ship only the student, paying a fraction of teacher FLOPs for every request, forever."
+        formula={alpha > 0 ? "train: 2·T + 6·S    infer: 2·S" : "train: 6·S    infer: 2·S"}
+        takeaway="When using online teacher targets, each training step includes a teacher forward pass. At a soft-target mix of zero, only the student runs. Inference uses the student in either case."
       >
-        <ComputeViz teacherParams={teacherParams} studentParams={studentParams} />
+        <ComputeViz
+          teacherParams={teacherParams}
+          studentParams={studentParams}
+          useTeacher={alpha > 0}
+        />
       </NumberedSubsection>
 
       <NumberedSubsection

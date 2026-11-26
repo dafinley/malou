@@ -8,7 +8,7 @@ import {
   type RelationshipNode
 } from "@/src/components/relationships-graph";
 import { SectionHeader } from "@/src/components/section-header";
-import type { Toggles, Values } from "@/src/lib/derive-stats";
+import { deriveStats, type Toggles, type Values } from "@/src/lib/derive-stats";
 import { BlockQuant } from "./block-quant";
 import { Dataflow } from "./dataflow";
 import { MemoryComparison } from "./memory-comparison";
@@ -108,7 +108,8 @@ export function QloraLab({
   const rank = Math.round(values.rank);
   const alpha = Math.round(values.alpha);
   const doubleQuant = toggles.doubleQuant;
-  const showCompare = toggles.compareToFull;
+  const stats = deriveStats("qlora", values, toggles);
+  const fullStats = toggles.compareToFull ? deriveStats("full-training", values, toggles) : null;
   const fp32OverheadBits = 32 / blockSize;
   const dqOverheadBits = 8 / blockSize + 32 / (blockSize * 256);
 
@@ -178,19 +179,10 @@ export function QloraLab({
       <NumberedSubsection
         num="05"
         title="Memory stack · where the bytes actually go"
-        formula="base + scales + LoRA + optimizer + activations"
-        takeaway="The biggest win isn't just smaller weights — it's that you no longer need optimizer state for the base (Adam needs ~10 bytes/param). LoRA-only optimizer state plus a quantized base = the magic. Paged optimizers spill rare spikes to CPU."
+        formula="base + scales + LoRA + grads + optimizer + activations"
+        takeaway="The frozen base has no gradients or Adam states. The adapters keep both. This comparison uses the same saved activation estimate for each method. Paged optimizers can move state to CPU memory during spikes."
       >
-        <MemoryComparison
-          params={params}
-          bits={bits}
-          blockSize={blockSize}
-          doubleQuant={doubleQuant}
-          rank={rank}
-          sequenceLength={values.sequenceLength}
-          batchSize={values.batchSize}
-          showCompare={showCompare}
-        />
+        <MemoryComparison bits={bits} fullStats={fullStats} stats={stats} />
       </NumberedSubsection>
 
       <NumberedSubsection
@@ -200,7 +192,7 @@ export function QloraLab({
         takeaway="Try the '65B headline' preset for the original QLoRA result. Then flip off double-quant and watch the overhead climb. Then drop bits to 8 and watch the base memory double."
       >
         <QloraSynthesis
-          params={params}
+          stats={stats}
           bits={bits}
           blockSize={blockSize}
           doubleQuant={doubleQuant}

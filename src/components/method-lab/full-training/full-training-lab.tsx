@@ -8,7 +8,8 @@ import {
   type RelationshipNode
 } from "@/src/components/relationships-graph";
 import { SectionHeader } from "@/src/components/section-header";
-import type { Values } from "@/src/lib/derive-stats";
+import { fullTrainingBytesPerParam, type Values } from "@/src/lib/derive-stats";
+import { formatBytes } from "@/src/lib/format";
 import { ComputeBudget } from "./compute-budget";
 import { OptimizerBreakdown } from "./optimizer-breakdown";
 import { FullTrainingSynthesis } from "./synthesis";
@@ -24,7 +25,7 @@ const NODES: RelationshipNode[] = [
     y: 200,
     label: "training memory",
     color: "var(--violet)",
-    sub: "~16 B / param"
+    sub: `${fullTrainingBytesPerParam} B / param + activations`
   },
   { id: "loss", x: 600, y: 60, label: "loss", color: "var(--green)", sub: "next-token CE" },
   {
@@ -91,8 +92,8 @@ export function FullTrainingLab({
       <NumberedSubsection
         num="02"
         title="Memory · what mixed-precision Adam actually costs"
-        formula="weights (2) + grads (2) + Adam (8) + fp32 master (4) = 16 B / param"
-        takeaway="A 7B model needs ~112 GB just for training state, before activations or optimizer parallelism. This is why ZeRO, FSDP, and tensor parallelism exist — to spread that footprint across devices."
+        formula={`weights (2) + grads (2) + Adam (8) + fp32 master (4) = ${fullTrainingBytesPerParam} B / param`}
+        takeaway={`In this mixed-precision Adam sketch, a 7B model has ${formatBytes(7e9 * fullTrainingBytesPerParam)} of training state. The overview also includes saved activations, which increase with tokens per step.`}
       >
         <OptimizerBreakdown modelParamsB={modelParamsB} />
       </NumberedSubsection>

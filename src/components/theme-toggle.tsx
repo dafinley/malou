@@ -1,7 +1,7 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   applyTheme,
   getStoredChoice,
@@ -26,28 +26,24 @@ export function ThemeToggle() {
   // Start as "system" on the server and during the first render so SSR/hydration
   // matches. The real preference is loaded in the effect below.
   const [choice, setChoice] = useState<ThemeChoice>("system");
-  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     // Hydrate from localStorage after mount. SSR can't read storage, so we
     // accept the intentional second render — same trade-off as useUrlState.
     const stored = getStoredChoice();
+    applyTheme(stored);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setChoice(stored);
-    setHydrated(true);
-  }, []);
-
-  const cycle = useCallback(() => {
-    setChoice((current) => {
-      const next = nextChoice(current);
-      setStoredChoice(next);
-      applyTheme(next);
-      return next;
-    });
   }, []);
 
   const next = nextChoice(choice);
   const tooltip = `Theme: ${LABEL[choice].toLowerCase()} (click for ${LABEL[next].toLowerCase()})`;
+
+  function cycle() {
+    setChoice(next);
+    setStoredChoice(next);
+    applyTheme(next);
+  }
 
   return (
     <button
@@ -55,14 +51,10 @@ export function ThemeToggle() {
       className="theme-toggle"
       data-choice={choice}
       onClick={cycle}
-      // The icon depends on client-only state. Avoid a hydration mismatch by
-      // suppressing it on first paint — the icon snaps to the right thing in
-      // the same tick as hydration via the effect above.
-      suppressHydrationWarning
       title={tooltip}
       type="button"
     >
-      <ChoiceIcon choice={hydrated ? choice : "system"} />
+      <ChoiceIcon choice={choice} />
       <span className="theme-toggle-label">{LABEL[choice].replace(" theme", "")}</span>
     </button>
   );

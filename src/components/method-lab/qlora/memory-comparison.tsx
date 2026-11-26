@@ -1,69 +1,7 @@
 "use client";
 
-import { adapterParams, blockScaleBytes, layersForParams } from "@/src/lib/derive-stats";
+import type { DerivedStats, Segment } from "@/src/lib/derive-stats";
 import { formatBytes, formatCompact } from "@/src/lib/format";
-
-export type QLoraMemoryProps = {
-  params: number;
-  bits: number;
-  blockSize: number;
-  doubleQuant: boolean;
-  rank: number;
-  sequenceLength: number;
-  batchSize: number;
-  showCompare: boolean;
-};
-
-type Seg = { label: string; value: number; color: string };
-
-function computeStacks(p: QLoraMemoryProps) {
-  const isQuantized = p.bits < 16;
-  const layers = layersForParams(p.params);
-  const adapter = adapterParams(p.params, p.rank);
-
-  const baseQ = (p.params * p.bits) / 8;
-  const scales = isQuantized ? blockScaleBytes(p.params, p.blockSize, p.doubleQuant) : 0;
-  const baseFull16 = p.params * 2;
-  const loraBytes = adapter * 2;
-  const loraOpt = adapter * 10;
-  const fullOpt = p.params * 10;
-  const acts = p.params * 0.05;
-
-  const qloraSegs: Seg[] = [
-    {
-      label:
-        p.bits === 4
-          ? "base · nf4"
-          : p.bits === 8
-            ? "base · int8"
-            : p.bits === 16
-              ? "base · bf16"
-              : `base · ${p.bits}-bit`,
-      value: baseQ,
-      color: "var(--violet)"
-    },
-    ...(scales > 0
-      ? [
-          {
-            label: p.doubleQuant ? "quant scales (dq)" : "quant scales (fp32)",
-            value: scales,
-            color: "var(--pink)"
-          }
-        ]
-      : []),
-    { label: "LoRA adapters", value: loraBytes, color: "var(--cyan)" },
-    { label: "optimizer (paged)", value: loraOpt, color: "var(--amber)" },
-    { label: "activations", value: acts, color: "var(--green)" }
-  ];
-  const fullSegs: Seg[] = [
-    { label: "base · bf16", value: baseFull16, color: "var(--violet)" },
-    { label: "optimizer (Adam)", value: fullOpt, color: "var(--amber)" },
-    { label: "activations", value: acts, color: "var(--green)" }
-  ];
-  const totalQ = qloraSegs.reduce((a, b) => a + b.value, 0);
-  const totalFull = fullSegs.reduce((a, b) => a + b.value, 0);
-  return { qloraSegs, fullSegs, totalQ, totalFull, layers };
-}
 
 const LABEL_COL = 140;
 const PAD = 24;
@@ -79,13 +17,13 @@ function MemoryBar({
   maxTotal
 }: {
   y: number;
-  segs: Seg[];
+  segs: Segment[];
   total: number;
   label: string;
   sub: string;
   maxTotal: number;
 }) {
-  const positions: Array<{ seg: Seg; x: number; w: number }> = [];
+  const positions: Array<{ seg: Segment; x: number; w: number }> = [];
   let cursor = PAD + LABEL_COL;
   for (const seg of segs) {
     const w = (seg.value / maxTotal) * BAR_W;
@@ -152,30 +90,39 @@ function MemoryBar({
   );
 }
 
-export function MemoryComparison(props: QLoraMemoryProps) {
-  const { qloraSegs, fullSegs, totalQ, totalFull } = computeStacks(props);
-  const H = props.showCompare ? 240 : 130;
-  const maxTotal = Math.max(totalQ, totalFull);
+export function MemoryComparison({
+  bits,
+  stats,
+  fullStats
+}: {
+  bits: number;
+  stats: DerivedStats;
+  fullStats: DerivedStats | null;
+}) {
+  const H = fullStats ? 240 : 130;
+  const total = stats.memoryBytes;
+  const maxTotal = Math.max(total, fullStats?.memoryBytes ?? 0);
+  const params = formatCompact(stats.modelParams);
 
   return (
     <div className="qlora-memory">
       <svg className="qlora-viz" role="img" viewBox={`0 0 ${W} ${H}`}>
         <MemoryBar
           y={20}
-          segs={qloraSegs}
-          total={totalQ}
+          segs={stats.stack}
+          total={total}
           label="QLoRA training"
-          sub={`${formatCompact(props.params)} params · ${props.bits}-bit`}
+          sub={`${params} params · ${bits}-bit`}
           maxTotal={maxTotal}
         />
-        {props.showCompare ? (
+        {fullStats ? (
           <>
             <MemoryBar
               y={120}
-              segs={fullSegs}
-              total={totalFull}
+              segs={fullStats.stack}
+              total={fullStats.memoryBytes}
               label="full fine-tune (bf16)"
-              sub={`${formatCompact(props.params)} params · 16-bit`}
+              sub={`${params} params · 16-bit`}
               maxTotal={maxTotal}
             />
             <text
@@ -186,14 +133,14 @@ export function MemoryComparison(props: QLoraMemoryProps) {
               x={PAD + LABEL_COL}
               y={H - 12}
             >
-              {(totalFull / totalQ).toFixed(1)}× less memory · saves{" "}
-              {formatBytes(totalFull - totalQ)}
+              {(fullStats.memoryBytes / total).toFixed(1)}× less memory · saves{" "}
+              {formatBytes(fullStats.memoryBytes - total)}
             </text>
           </>
         ) : null}
       </svg>
       <div className="qlora-memory-legend">
-        {qloraSegs.map((s) => (
+        {stats.stack.map((s) => (
           <div key={s.label}>
             <span style={{ background: s.color }} />
             <strong>{s.label}</strong>

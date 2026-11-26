@@ -31,11 +31,51 @@ const colorFor = {
   gradients: "var(--red)",
   optimizer: "var(--amber)",
   activations: "var(--violet)",
+  masterWeights: "var(--pink)",
   adapters: "var(--green)",
   frozen: "var(--line-strong)",
   reward: "var(--pink)",
   scales: "var(--pink)"
 };
+
+export const bf16Bytes = 2;
+export const adamMomentBytes = 8;
+
+export const fullTrainingState = [
+  { label: "weights", bytesPerParam: bf16Bytes, color: colorFor.weights, note: "bf16" },
+  { label: "gradients", bytesPerParam: bf16Bytes, color: colorFor.gradients, note: "bf16" },
+  {
+    label: "Adam m + v",
+    bytesPerParam: adamMomentBytes,
+    color: colorFor.optimizer,
+    note: "fp32 state"
+  },
+  { label: "fp32 master", bytesPerParam: 4, color: colorFor.masterWeights, note: "master weights" }
+];
+
+export const fullTrainingBytesPerParam = fullTrainingState.reduce(
+  (bytes, segment) => bytes + segment.bytesPerParam,
+  0
+);
+
+function trainingStack(params: number, activationBytes: number): Segment[] {
+  return [
+    ...fullTrainingState.map(({ label, bytesPerParam, color }) => ({
+      label,
+      value: params * bytesPerParam,
+      color
+    })),
+    { label: "activations", value: activationBytes, color: colorFor.activations }
+  ];
+}
+
+function stackBytes(stack: Segment[]): number {
+  return stack.reduce((total, segment) => total + segment.value, 0);
+}
+
+function estimateActivationBytes(tokens: number, hidden: number, layers: number) {
+  return tokens * hidden * layers * 2.2;
+}
 
 export function layersForParams(params: number): number {
   if (params <= 1.5e9) return 24;
@@ -73,12 +113,8 @@ export function deriveStats(methodKey: MethodKey, values: Values, toggles: Toggl
   const layers = layersForParams(modelParams);
   const hiddenSize = hiddenForParams(modelParams, layers);
   const tokensPerStep = values.sequenceLength * values.batchSize;
-  const activationBytes = tokensPerStep * hiddenSize * layers * 2.2;
-  const fullWeightBytes = modelParams * 2;
-  const fullGradientBytes = modelParams * 2;
-  const fullOptimizerBytes = modelParams * 8;
-  const fullMemoryBytes =
-    fullWeightBytes + fullGradientBytes + fullOptimizerBytes + activationBytes;
+  const activationBytes = estimateActivationBytes(tokensPerStep, hiddenSize, layers);
+  const fullMemoryBytes = modelParams * fullTrainingBytesPerParam + activationBytes;
 
   if (methodKey === "full-training") {
     return {
@@ -94,54 +130,39 @@ export function deriveStats(methodKey: MethodKey, values: Values, toggles: Toggl
       headline: `${formatCompact(values.datasetTokensB * 1e9)} tokens shape every layer`,
       bottleneck: "Data quality, optimizer stability, and total compute dominate.",
       signal: "Dense supervised signal from every next-token prediction.",
-      stack: [
-        { label: "weights", value: fullWeightBytes, color: colorFor.weights },
-        { label: "gradients", value: fullGradientBytes, color: colorFor.gradients },
-        { label: "optimizer", value: fullOptimizerBytes, color: colorFor.optimizer },
-        { label: "activations", value: activationBytes, color: colorFor.activations }
-      ]
+      stack: trainingStack(modelParams, activationBytes)
     };
   }
 
-  if (methodKey === "adapter-finetuning") {
+  if (methodKey === "adapter-finetuning" || methodKey === "qlora") {
+    const isQLoRA = methodKey === "qlora";
     const adapter = adapterParams(modelParams, values.rank);
-    const adapterBytes = adapter * 2;
-    const adapterOptimizerBytes = adapter * 8;
-    const memoryBytes = fullWeightBytes + adapterBytes + adapterOptimizerBytes + activationBytes;
-
-    return {
-      modelParams,
-      hiddenSize,
-      layers,
-      trainableParams: adapter,
-      trainableShare: (adapter / modelParams) * 100,
-      memoryBytes,
-      fullMemoryBytes,
-      memoryRatio: memoryBytes / fullMemoryBytes,
-      tokensPerStep,
-      headline: `${formatCompact(adapter)} adapter params move`,
-      bottleneck: "Rank controls capacity; sequence length controls activation pressure.",
-      signal: "Supervised examples steer a frozen base through small update matrices.",
-      stack: [
-        { label: "frozen base", value: fullWeightBytes, color: colorFor.frozen },
-        { label: "adapters", value: adapterBytes, color: colorFor.adapters },
-        { label: "adapter optimizer", value: adapterOptimizerBytes, color: colorFor.optimizer },
-        { label: "activations", value: activationBytes, color: colorFor.activations }
-      ]
-    };
-  }
-
-  if (methodKey === "qlora") {
-    const adapter = adapterParams(modelParams, values.rank);
-    const isQuantized = values.quantBits < 16;
-    const quantizedBaseBytes = (modelParams * values.quantBits) / 8;
+    const bits = isQLoRA ? values.quantBits : 16;
+    const isQuantized = bits < 16;
     const scaleBytes = isQuantized
       ? blockScaleBytes(modelParams, values.blockSize, toggles.doubleQuant)
       : 0;
-    const adapterBytes = adapter * 2;
-    const adapterOptimizerBytes = adapter * 10;
-    const memoryBytes =
-      quantizedBaseBytes + scaleBytes + adapterBytes + adapterOptimizerBytes + activationBytes;
+    const stack = [
+      {
+        label: isQuantized ? "quantized base" : "frozen base (bf16)",
+        value: (modelParams * bits) / 8,
+        color: colorFor.frozen
+      },
+      ...(scaleBytes > 0
+        ? [
+            {
+              label: toggles.doubleQuant ? "quant scales (dq)" : "quant scales (fp32)",
+              value: scaleBytes,
+              color: colorFor.scales
+            }
+          ]
+        : []),
+      { label: "adapters", value: adapter * bf16Bytes, color: colorFor.adapters },
+      { label: "adapter gradients", value: adapter * bf16Bytes, color: colorFor.gradients },
+      { label: "adapter optimizer", value: adapter * adamMomentBytes, color: colorFor.optimizer },
+      { label: "activations", value: activationBytes, color: colorFor.activations }
+    ];
+    const memoryBytes = stackBytes(stack);
 
     return {
       modelParams,
@@ -153,24 +174,16 @@ export function deriveStats(methodKey: MethodKey, values: Values, toggles: Toggl
       fullMemoryBytes,
       memoryRatio: memoryBytes / fullMemoryBytes,
       tokensPerStep,
-      headline: `${values.quantBits}-bit base, ${formatCompact(adapter)} trainable`,
-      bottleneck: "Quantized storage saves VRAM; kernels and activation memory still matter.",
-      signal: "Same supervised objective as LoRA, with a compressed frozen checkpoint.",
-      stack: [
-        { label: "quantized base", value: quantizedBaseBytes, color: colorFor.frozen },
-        ...(scaleBytes > 0
-          ? [
-              {
-                label: toggles.doubleQuant ? "quant scales (dq)" : "quant scales (fp32)",
-                value: scaleBytes,
-                color: colorFor.scales
-              }
-            ]
-          : []),
-        { label: "adapters", value: adapterBytes, color: colorFor.adapters },
-        { label: "adapter optimizer", value: adapterOptimizerBytes, color: colorFor.optimizer },
-        { label: "activations", value: activationBytes, color: colorFor.activations }
-      ]
+      headline: isQLoRA
+        ? `${bits}-bit base, ${formatCompact(adapter)} trainable`
+        : `${formatCompact(adapter)} adapter params move`,
+      bottleneck: isQuantized
+        ? "Quantized storage saves VRAM; kernels and activation memory still matter."
+        : "Rank controls capacity; sequence length controls activation pressure.",
+      signal: isQuantized
+        ? "Same supervised objective as LoRA, with a compressed frozen checkpoint."
+        : "Supervised examples steer a frozen base through small update matrices.",
+      stack
     };
   }
 
@@ -179,11 +192,23 @@ export function deriveStats(methodKey: MethodKey, values: Values, toggles: Toggl
     const studentParams = values.studentSizeB * 1e9;
     const studentLayers = layersForParams(studentParams);
     const studentHidden = hiddenForParams(studentParams, studentLayers);
-    const studentActivationBytes =
-      values.sequenceLength * values.batchSize * studentHidden * studentLayers * 2.2;
-    const teacherBytes = teacherParams * 2;
-    const studentBytes = studentParams * 12 + studentActivationBytes;
+    const studentActivations = estimateActivationBytes(tokensPerStep, studentHidden, studentLayers);
+    const teacherLayers = layersForParams(teacherParams);
+    const teacherHidden = hiddenForParams(teacherParams, teacherLayers);
+    const teacherBaseline =
+      teacherParams * fullTrainingBytesPerParam +
+      estimateActivationBytes(tokensPerStep, teacherHidden, teacherLayers);
+    const useTeacher = values.softTargetWeight > 0;
     const compression = Math.max(teacherParams / studentParams, 1);
+    const stack = trainingStack(studentParams, studentActivations);
+    if (useTeacher) {
+      stack.unshift({
+        label: "teacher weights",
+        value: teacherParams * bf16Bytes,
+        color: colorFor.frozen
+      });
+    }
+    const memoryBytes = stackBytes(stack);
 
     return {
       modelParams: studentParams,
@@ -191,19 +216,16 @@ export function deriveStats(methodKey: MethodKey, values: Values, toggles: Toggl
       layers: studentLayers,
       trainableParams: studentParams,
       trainableShare: 100,
-      memoryBytes: teacherBytes + studentBytes,
-      fullMemoryBytes: teacherParams * 12 + studentActivationBytes,
-      memoryRatio: (teacherBytes + studentBytes) / (teacherParams * 12 + studentActivationBytes),
+      memoryBytes,
+      fullMemoryBytes: teacherBaseline,
+      memoryRatio: memoryBytes / teacherBaseline,
       tokensPerStep,
-      headline: `${compression.toFixed(1)}x compression target`,
-      bottleneck: "The teacher adds training cost once; the student pays back at inference.",
-      signal: `${Math.round(values.softTargetWeight * 100)}% soft teacher targets at T=${values.temperature.toFixed(1)}.`,
-      stack: [
-        { label: "teacher forward", value: teacherBytes, color: colorFor.frozen },
-        { label: "student weights", value: studentParams * 2, color: colorFor.weights },
-        { label: "student optimizer", value: studentParams * 8, color: colorFor.optimizer },
-        { label: "activations", value: studentActivationBytes, color: colorFor.activations }
-      ]
+      headline: useTeacher ? `${compression.toFixed(1)}x compression target` : "Student only",
+      bottleneck: "The student pays back its training cost with cheaper inference.",
+      signal: useTeacher
+        ? `${Math.round(values.softTargetWeight * 100)}% soft teacher targets at T=${values.temperature.toFixed(1)}.`
+        : "Supervised training on the student with hard labels.",
+      stack
     };
   }
 

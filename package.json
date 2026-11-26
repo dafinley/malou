@@ -26,6 +26,10 @@
     "bun": ">=1.1.0"
   },
   "overrides": {
+    "baseline-browser-mapping": "^2.11.0",
+    "nanoid": "^3.3.18",
+    "postcss": "8.5.23",
+    "source-map-js": "^1.2.2",
     "zod-validation-error": "4.0.2"
   },
   "scripts": {
@@ -39,11 +43,12 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "bun run lint && bun run typecheck && bun run format:check"
+    "check": "bun run lint && bun run typecheck && bun run format:check && bun test"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.20",
     "lucide-react": "^1.16.0",
-    "next": "^16.2.6",
+    "next": "^16.4.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
@@ -53,8 +58,8 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "9.39.4",
-    "eslint-config-next": "^16.2.6",
-    "postcss": "^8.5.14",
+    "eslint-config-next": "^16.4.6",
+    "postcss": "^8.5.23",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4.3.0",

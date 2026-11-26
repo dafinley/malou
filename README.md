@@ -76,7 +76,7 @@ match the final URL.
 ### Quality gates
 
 ```bash
-bun run check   # lint + typecheck + format
+bun run check   # lint + typecheck + format + tests
 ```
 
 Individual commands are also exposed: `bun run lint`, `bun run typecheck`, `bun run format`, `bun run format:check`.
@@ -105,7 +105,7 @@ Individual commands are also exposed: `bun run lint`, `bun run typecheck`, `bun 
 - **Per-method deep dives.** Math, code, decision guide, and references in their own cards beside each diagram.
 - **Side-by-side comparison.** Toggle methods on or off and watch memory footprint and trainable share line up.
 - **Accessible by default.** Keyboard navigation, focus rings, ARIA roles, and reduced-motion support.
-- **Dark canonical theme.** A muted palette with semantic accent colors per method.
+- **Adaptive theme.** System, light, and dark modes with semantic accent colors per method.
 
 ## Stack
 

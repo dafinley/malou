@@ -90,7 +90,7 @@ Reference a term inline with `<Term id="lora" />`.
 ## Pre-PR checklist
 
 ```bash
-bun run check   # lint + typecheck + format
+bun run check   # lint + typecheck + format + tests
 bun run build   # production build sanity check
 ```
 

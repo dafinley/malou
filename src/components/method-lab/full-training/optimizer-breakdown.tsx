@@ -1,28 +1,20 @@
 "use client";
 
+import { fullTrainingBytesPerParam, fullTrainingState } from "@/src/lib/derive-stats";
 import { formatBytes, formatCompact } from "@/src/lib/format";
-
-type Seg = { label: string; bytesPerParam: number; color: string; note: string };
-
-const SEGMENTS: Seg[] = [
-  { label: "weights", bytesPerParam: 2, color: "var(--cyan)", note: "bf16" },
-  { label: "gradients", bytesPerParam: 2, color: "var(--red)", note: "bf16" },
-  { label: "Adam m + v", bytesPerParam: 8, color: "var(--amber)", note: "fp32 state" },
-  { label: "fp32 master", bytesPerParam: 4, color: "var(--violet)", note: "mixed precision" }
-];
 
 export function OptimizerBreakdown({ modelParamsB }: { modelParamsB: number }) {
   const W = 720;
   const H = 200;
   const pad = 24;
   const N = modelParamsB * 1e9;
-  const totalBytesPerParam = SEGMENTS.reduce((s, seg) => s + seg.bytesPerParam, 0);
+  const totalBytesPerParam = fullTrainingBytesPerParam;
   const totalBytes = N * totalBytesPerParam;
 
-  const positions: Array<{ seg: Seg; x: number; w: number }> = [];
+  const positions: Array<{ seg: (typeof fullTrainingState)[number]; x: number; w: number }> = [];
   const barW = W - pad * 2 - 200;
   let cursor = pad;
-  for (const seg of SEGMENTS) {
+  for (const seg of fullTrainingState) {
     const w = (seg.bytesPerParam / totalBytesPerParam) * barW;
     positions.push({ seg, x: cursor, w });
     cursor += w;
@@ -92,8 +84,8 @@ export function OptimizerBreakdown({ modelParamsB }: { modelParamsB: number }) {
 
       {/* Legend grid */}
       <g transform={`translate(${pad}, 120)`}>
-        {SEGMENTS.map((seg, i) => (
-          <g key={i} transform={`translate(${(i % 4) * 170}, 0)`}>
+        {fullTrainingState.map((seg, i) => (
+          <g key={seg.label} transform={`translate(${i * 170}, 0)`}>
             <rect fill={seg.color} height={10} opacity={0.6} rx={2} width={10} x={0} y={0} />
             <text fill="var(--text)" fontFamily="var(--font-mono)" fontSize={10.5} x={16} y={9}>
               {seg.label}
@@ -106,7 +98,7 @@ export function OptimizerBreakdown({ modelParamsB }: { modelParamsB: number }) {
       </g>
 
       <text fill="var(--dim)" fontFamily="var(--font-mono)" fontSize={10.5} x={pad} y={H - 12}>
-        gradient checkpointing + ZeRO can cut this further — at the cost of recompute or comms
+        ZeRO shards training state across devices. Checkpointing reduces saved activations.
       </text>
     </svg>
   );

@@ -91,13 +91,15 @@ function FlopsBar({
 
 export function ComputeViz({
   teacherParams,
-  studentParams
+  studentParams,
+  useTeacher
 }: {
   teacherParams: number;
   studentParams: number;
+  useTeacher: boolean;
 }) {
   // Standard 2N (fwd) / 6N (fwd+bwd) FLOPs-per-token approximations.
-  const teacherFlops = 2 * teacherParams;
+  const teacherFlops = useTeacher ? 2 * teacherParams : 0;
   const studentFlops = 6 * studentParams;
   const fullFlops = 6 * teacherParams;
   const distillFlops = teacherFlops + studentFlops;
@@ -107,17 +109,19 @@ export function ComputeViz({
   return (
     <svg className="lab-viz" role="img" viewBox={`0 0 ${W} ${H}`}>
       <text x={PAD} y={18} fill="var(--muted)" fontFamily="var(--font-mono)" fontSize={11}>
-        FLOPs per training token · teacher forward is &quot;free&quot; relative to its size
+        FLOPs per training token
       </text>
       <FlopsBar
         y={36}
         segs={[
-          { value: teacherFlops, label: "teacher fwd", color: "var(--violet)" },
+          ...(useTeacher
+            ? [{ value: teacherFlops, label: "teacher fwd", color: "var(--violet)" }]
+            : []),
           { value: studentFlops, label: "student fwd+bwd", color: "var(--cyan)" }
         ]}
         total={distillFlops}
-        label="distillation step"
-        sub="2× teacher + 6× student"
+        label={useTeacher ? "distillation step" : "student-only step"}
+        sub={useTeacher ? "2× teacher + 6× student" : "6× student"}
         maxFlops={maxFlops}
       />
       <FlopsBar

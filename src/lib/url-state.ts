@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import {
   architectures,
@@ -21,6 +21,14 @@ export type SerializedState = {
   values: Record<ControlKey, number>;
   toggles: Record<ToggleKey, boolean>;
   selectors: Record<SelectorKey, string>;
+};
+
+export type StatePatch = {
+  method?: MethodKey;
+  architecture?: ArchitectureKey;
+  values?: Partial<Record<ControlKey, number>>;
+  toggles?: Partial<Record<ToggleKey, boolean>>;
+  selectors?: Partial<Record<SelectorKey, string>>;
 };
 
 const methodKeys = methods.map((m) => m.key) as [MethodKey, ...MethodKey[]];
@@ -72,17 +80,13 @@ const methodSchema = z.enum(methodKeys);
 const architectureSchema = z.enum(architectureKeys);
 
 function parseParam<T>(schema: z.ZodSchema<T>, raw: string | null): T | undefined {
-  if (raw === null) return undefined;
+  if (!raw?.trim()) return undefined;
   const result = schema.safeParse(raw);
   return result.success ? result.data : undefined;
 }
 
-function readFromUrl(): Partial<SerializedState> | null {
-  if (typeof window === "undefined") return null;
-  const params = new URLSearchParams(window.location.search);
-  if ([...params.keys()].length === 0) return null;
-
-  const out: Partial<SerializedState> = {};
+export function parseTrainingParams(params: URLSearchParams): StatePatch {
+  const out: StatePatch = {};
   const method = parseParam(methodSchema, params.get("method"));
   if (method) out.method = method;
   const architecture = parseParam(architectureSchema, params.get("arch"));
@@ -93,92 +97,85 @@ function readFromUrl(): Partial<SerializedState> | null {
     const parsed = parseParam(controlSchemas[key], params.get(key));
     if (parsed !== undefined) values[key] = parsed;
   }
-  if (Object.keys(values).length > 0) out.values = values as Record<ControlKey, number>;
+  if (Object.keys(values).length > 0) out.values = values;
 
   const toggles: Partial<Record<ToggleKey, boolean>> = {};
   for (const key of Object.keys(defaultToggles) as ToggleKey[]) {
     const parsed = parseParam(toggleSchema, params.get(key));
     if (parsed !== undefined) toggles[key] = parsed;
   }
-  if (Object.keys(toggles).length > 0) out.toggles = toggles as Record<ToggleKey, boolean>;
+  if (Object.keys(toggles).length > 0) out.toggles = toggles;
 
   const selectors: Partial<Record<SelectorKey, string>> = {};
   for (const key of Object.keys(defaultSelectors) as SelectorKey[]) {
     const parsed = parseParam(selectorSchemas[key], params.get(key));
     if (parsed !== undefined) selectors[key] = parsed;
   }
-  if (Object.keys(selectors).length > 0) out.selectors = selectors as Record<SelectorKey, string>;
+  if (Object.keys(selectors).length > 0) out.selectors = selectors;
 
   return out;
 }
 
-function writeToUrl(state: SerializedState, defaults: SerializedState) {
-  if (typeof window === "undefined") return;
-  const params = new URLSearchParams();
+export function serializeTrainingParams(
+  state: SerializedState,
+  defaults: SerializedState,
+  existingParams?: URLSearchParams
+): URLSearchParams {
+  const params = new URLSearchParams(existingParams);
+  function setParam(key: string, value: string | number | boolean, fallback: typeof value) {
+    if (value === fallback) params.delete(key);
+    else params.set(key, typeof value === "boolean" ? String(Number(value)) : String(value));
+  }
 
-  if (state.method !== defaults.method) params.set("method", state.method);
-  if (state.architecture !== defaults.architecture) params.set("arch", state.architecture);
+  setParam("method", state.method, defaults.method);
+  setParam("arch", state.architecture, defaults.architecture);
 
   for (const [key, value] of Object.entries(state.values) as Array<[ControlKey, number]>) {
-    if (defaults.values[key] !== value) params.set(key, String(value));
+    setParam(key, value, defaults.values[key]);
   }
   for (const [key, value] of Object.entries(state.toggles) as Array<[ToggleKey, boolean]>) {
-    if (defaults.toggles[key] !== value) params.set(key, value ? "1" : "0");
+    setParam(key, value, defaults.toggles[key]);
   }
   for (const [key, value] of Object.entries(state.selectors) as Array<[SelectorKey, string]>) {
-    if (defaults.selectors[key] !== value) params.set(key, value);
+    setParam(key, value, defaults.selectors[key]);
   }
 
-  const query = params.toString();
-  const next = `${window.location.pathname}${query ? `?${query}` : ""}`;
-  window.history.replaceState(null, "", next);
+  return params;
 }
 
-export type StatePatch = {
-  method?: MethodKey;
-  architecture?: ArchitectureKey;
-  values?: Partial<Record<ControlKey, number>>;
-  toggles?: Partial<Record<ToggleKey, boolean>>;
-  selectors?: Partial<Record<SelectorKey, string>>;
-};
+function mergeState(current: SerializedState, patch: StatePatch): SerializedState {
+  return {
+    method: patch.method ?? current.method,
+    architecture: patch.architecture ?? current.architecture,
+    values: { ...current.values, ...patch.values },
+    toggles: { ...current.toggles, ...patch.toggles },
+    selectors: { ...current.selectors, ...patch.selectors }
+  };
+}
 
 export function useUrlState(defaults: SerializedState) {
-  const [state, setState] = useState<SerializedState>(defaults);
-  const hydratedRef = useRef(false);
+  const [state, setState] = useState<SerializedState | null>(null);
 
   useEffect(() => {
-    // Hydrate from URL after mount. SSR cannot read window, so we accept the
-    // intentional second render to avoid hydration mismatches with the static
-    // shell. The react-hooks rule flags this generic pattern, but it is the
-    // canonical way to sync from a non-React source like window.location.
-    const fromUrl = readFromUrl();
-    if (fromUrl) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState((current) => ({
-        method: fromUrl.method ?? current.method,
-        architecture: fromUrl.architecture ?? current.architecture,
-        values: { ...current.values, ...(fromUrl.values ?? {}) },
-        toggles: { ...current.toggles, ...(fromUrl.toggles ?? {}) },
-        selectors: { ...current.selectors, ...(fromUrl.selectors ?? {}) }
-      }));
-    }
-    hydratedRef.current = true;
-  }, []);
+    // The static shell uses defaults until the client can read the URL.
+    const patch = parseTrainingParams(new URLSearchParams(window.location.search));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState((current) => current ?? mergeState(defaults, patch));
+  }, [defaults]);
 
   useEffect(() => {
-    if (!hydratedRef.current) return;
-    writeToUrl(state, defaults);
+    if (!state) return;
+    const url = new URL(window.location.href);
+    const query = serializeTrainingParams(state, defaults, url.searchParams).toString();
+    if (query === url.searchParams.toString()) return;
+    url.search = query;
+    window.history.replaceState(window.history.state, "", url);
   }, [state, defaults]);
 
-  const update = useCallback((patch: StatePatch) => {
-    setState((current) => ({
-      method: patch.method ?? current.method,
-      architecture: patch.architecture ?? current.architecture,
-      values: { ...current.values, ...(patch.values ?? {}) },
-      toggles: { ...current.toggles, ...(patch.toggles ?? {}) },
-      selectors: { ...current.selectors, ...(patch.selectors ?? {}) }
-    }));
-  }, []);
+  const update = useCallback(
+    (patch: StatePatch) => setState((current) => mergeState(current ?? defaults, patch)),
+    [defaults]
+  );
 
-  return [state, update] as const;
+  return [state ?? defaults, update] as const;
 }
